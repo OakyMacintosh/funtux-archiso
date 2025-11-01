@@ -30,21 +30,26 @@ jobs:
 
       - name: Build Linux kernel
         run: |
+          mkdir -p work/x86_64/airootfs/boot
+          mkdir -p work/x86_64/airootfs/lib/modules
+
           sudo -u builder bash -lc '
+            export WORKDIR="$GITHUB_WORKSPACE/work/x86_64/airootfs"
             git clone --depth=1 https://github.com/torvalds/linux.git ~/linux
             cd ~/linux
-            # use custom config if provided
             if [ -f "$GITHUB_WORKSPACE/kernel.config" ]; then
               cp "$GITHUB_WORKSPACE/kernel.config" .config
             else
               make defconfig
             fi
+
             make -j$(nproc)
-            make modules_install INSTALL_MOD_PATH="$GITHUB_WORKSPACE/work/x86_64/airootfs"
-            make install INSTALL_PATH="$GITHUB_WORKSPACE/work/x86_64/airootfs/boot"
+            make modules_install INSTALL_MOD_PATH="$WORKDIR"
+            make install INSTALL_PATH="$WORKDIR/boot"
           '
 
-      - name: Generate initramfs inside airootfs
+
+      - name: Generate initramfs for FunTux
         run: |
           arch-chroot work/x86_64/airootfs mkinitcpio -P
 
