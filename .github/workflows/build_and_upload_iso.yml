@@ -1,4 +1,4 @@
-name: Build FunTux ISO
+name: Build FunTux ISO with Custom Kernel
 
 on:
   push:
@@ -7,29 +7,33 @@ on:
 
 jobs:
   build:
-    name: Build FunTux ISO with Custom Kernel
+    name: Build FunTux ISO + custom kernel
     runs-on: ubuntu-latest
 
     container:
       image: archlinux:latest
-      options: --privileged  # needed for mkarchiso loop mounts
+      options: --privileged
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare Arch build environment
+      - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm base-devel git archiso bc kmod cpio perl tar xz
+
+      - name: Set up non-root builder
+        run: |
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
           chown -R builder:builder .
 
-      - name: Build custom Linux kernel
+      - name: Build Linux kernel
         run: |
-          sudo -u builder bash -c '
+          sudo -u builder bash -lc '
             git clone --depth=1 https://github.com/torvalds/linux.git ~/linux
             cd ~/linux
+            # use custom config if provided
             if [ -f "$GITHUB_WORKSPACE/kernel.config" ]; then
               cp "$GITHUB_WORKSPACE/kernel.config" .config
             else
@@ -40,7 +44,7 @@ jobs:
             make install INSTALL_PATH="$GITHUB_WORKSPACE/work/x86_64/airootfs/boot"
           '
 
-      - name: Generate initramfs for FunTux
+      - name: Generate initramfs inside airootfs
         run: |
           arch-chroot work/x86_64/airootfs mkinitcpio -P
 
@@ -49,7 +53,7 @@ jobs:
           chmod +x ./build.sh
           ./build.sh
 
-      - name: Upload FunTux ISO artifact
+      - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
           name: funtux-iso
