@@ -9,33 +9,39 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Ensure workspace dirs
         run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm archiso git
+          mkdir -p out work
+          chmod -R 777 out work
 
-      - name: Modify build script
+      - name: Build ISO inside privileged Arch container
+        env:
+          GITHUB_ACTIONS: "true"
         run: |
-          sed -i 's/sudo mkarchiso/mkarchiso/g' build.sh
+          docker run --rm --privileged \
+            -e GITHUB_ACTIONS=true \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
+            archlinux:latest \
+            bash -lc "pacman -Syu --noconfirm archiso git && chmod +x build.sh && ./build.sh build"
 
-      - name: Build ISO
-        run: |
-          ./build.sh build
-          echo "ISO_PATH=$(ls out/*.iso)" >> $GITHUB_ENV
-          echo "ISO_NAME=$(basename $(ls out/*.iso))" >> $GITHUB_ENV
+      - name: List output
+        run: ls -l out || true
 
       - name: Generate checksums
         run: |
-          cd out/
-          sha256sum "${{ env.ISO_NAME }}" > "${{ env.ISO_NAME }}.sha256"
-          sha512sum "${{ env.ISO_NAME }}" > "${{ env.ISO_NAME }}.sha512"
+          ISO="$(ls out/*.iso | head -n1)"
+          ISO_NAME="$(basename "$ISO")"
+          cd out
+          sha256sum "$ISO_NAME" > "${ISO_NAME}.sha256"
+          sha512sum "$ISO_NAME" > "${ISO_NAME}.sha512"
+          echo "ISO_PATH=$ISO" >> $GITHUB_ENV
+          echo "ISO_NAME=$ISO_NAME" >> $GITHUB_ENV
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
