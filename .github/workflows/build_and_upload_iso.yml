@@ -1,0 +1,48 @@
+name: Build and Release ISO
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm archiso git
+
+      - name: Build ISO
+        run: |
+          ./build.sh build
+          echo "ISO_PATH=$(ls out/*.iso)" >> $GITHUB_ENV
+          echo "ISO_NAME=$(basename $(ls out/*.iso))" >> $GITHUB_ENV
+
+      - name: Generate checksums
+        run: |
+          cd out/
+          sha256sum "${{ env.ISO_NAME }}" > "${{ env.ISO_NAME }}.sha256"
+          sha512sum "${{ env.ISO_NAME }}" > "${{ env.ISO_NAME }}.sha512"
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ env.ISO_PATH }}
+            out/${{ env.ISO_NAME }}.sha256
+            out/${{ env.ISO_NAME }}.sha512
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
