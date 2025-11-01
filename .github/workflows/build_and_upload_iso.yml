@@ -21,6 +21,10 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git
 
+      - name: Modify build script
+        run: |
+          sed -i 's/sudo mkarchiso/mkarchiso/g' build.sh
+
       - name: Build ISO
         run: |
           ./build.sh build
