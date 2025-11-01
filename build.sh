@@ -16,8 +16,12 @@ build() {
         -e "s|%ARCH%|${arch}|g" "$f" || true
     done < <(find funiso -type f \( -name '*.cfg' -o -name '*.conf' -o -name '*.lst' -o -name '*.entry' \) -print0)
     
-    # run the original build command
-    sudo mkarchiso -v ./funiso
+    # Check if running in GitHub Actions
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+        mkarchiso -v ./funiso
+    else
+        sudo mkarchiso -v ./funiso
+    fi
 }
 
 # Get the command argument, default to "build" if none provided
